@@ -1,4 +1,4 @@
-# Instalando Openshift Container Platform - Libvirt / KVM
+# Instalando Openshift Container Platform 4.0 - Libvirt / KVM
 
 # Pre install
 
