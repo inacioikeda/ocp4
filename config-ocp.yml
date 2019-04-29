@@ -1,0 +1,352 @@
+---
+- hosts: localhost
+  vars:
+    work_dir: '/tmp'
+    GOBIN: "{{ work_dir }}/go/bin"
+    GOPATH: "{{ work_dir }}/go"
+    installer_tag: 'v0.14.0'
+    kvm_device_path: "/dev/kvm"
+
+    libvirt_settings:
+      - {name: 'listen_tls', val: 0}
+      - {name: 'listen_tcp', val: 1}
+      - {name: 'auth_tcp', val: "'none'"}
+      - {name: 'tcp_port', val: "'16509'"}
+    
+    cluster:
+      - {domain_name: "tt.testing", wildcard_name: "apps.tt.testing", cluster_cidr: "192.168.126.0/24", dns_server: "192.168.126.1", router_server: "192.168.126.51"}
+    
+    terraform_version: "0.11.8"
+    
+  environment:
+    GOBIN: "{{ GOBIN }}"
+    GOPATH: "{{ GOPATH }}"
+    PATH: "{{ GOBIN }}:{{ ansible_env.PATH }}"
+      
+  pre_tasks:
+  - block: 
+    - name: Habilitar RHSM
+      rhsm_repository:
+        name: "{{ item }}"
+      with_items:
+        - rhel-7-server-rpms
+        - rhel-7-server-extras-rpms
+        - rhel-7-server-rh-common-rpms
+        - rhel-7-server-ansible-2.7-rpms
+        - rhel-7-server-devtools-rpms
+        - rhel-server-rhscl-7-rpms
+    
+  - block:
+    - name: Download GO
+      get_url:
+        url: https://dl.google.com/go/go1.11.9.linux-amd64.tar.gz
+        dest: "{{ work_dir }}"
+        
+    - name: Descompactando GO
+      shell: tar -xzf "{{ work_dir }}/go1.11.9.linux-amd64.tar.gz" -C "{{ work_dir }}"
+      
+    - name: Copiando binario para bin folder
+      copy:
+        src: "{{ work_dir }}/go/bin/go"
+        dest: /usr/bin/go
+        mode: 0777
+    
+  - block:
+    - name: Checar existencia de GOLANG
+      shell: go version
+      register: go_ver
+      ignore_errors: yes
+      
+    - name: Checar a versao do GOLANG
+      fail:
+        msg="GO Lang Verion {{go_ver.stdout|regex_search('(\d).(\d*).(\d*)')}} deve ser superior a versao 1.10.3"
+      when: go_ver is succeeded and go_ver.stdout|regex_search('(\d).(\d*).(\d*)')|int is version('1.10.3', '>=')
+      
+  - block:
+    - name: Instalando pacotes KVM
+      yum:
+        name: "{{ item }}"
+        state: installed
+      with_items:
+        - vim
+        - git
+        - nano
+        - wget
+        - net-tools
+        - unzip
+        - libvirt
+        - libvirt-devel
+        - libselinux-python
+        - libvirt-client
+        - python-netaddr
+        - libvirt-python
+        - python-lxml
+        - virt-manager
+      ignore_errors: yes    
+      become: yes
+      
+    - name: Iniciando KVM
+      service:
+        name: libvirtd
+        state: started
+        enabled: yes
+
+  tasks:
+    - block:
+      - name: Criando diretorio GO
+        file:
+          state: directory
+          path: "{{ work_dir }}/go/{{ item }}"
+        with_items:
+          - src
+          - pkg
+          - bin
+          
+      - name: Adicionando GO enviroments para bashrc
+        lineinfile:
+          path: "~/.bashrc"
+          line: "{{ item }}"
+        with_items:
+          - "export GOBIN={{ work_dir }}/go/bin"
+          - "export GOPATH={{ work_dir }}/go"
+          - "export PATH=${GOBIN}:${PATH}"
+        
+    - block:
+      - name: Instalando build packages
+        yum:
+          name: "{{ item }}"
+          state: installed
+        become: yes
+        with_items:
+          - libvirt-devel
+          - gcc-c++
+        
+      - name: Download Dep
+        get_url:
+          url: https://raw.githubusercontent.com/golang/dep/master/install.sh
+          dest: "{{ work_dir }}/install.sh"
+          mode: 0777
+          
+      - name: Instalando Dep
+        shell: "{{ work_dir }}/install.sh"
+        
+    - block:
+      - name: Clonando o Instalador do OCP
+        git:
+          repo: https://github.com/openshift/installer.git
+          dest: "{{ work_dir }}/go/src/github.com/openshift/installer"
+          version: "{{ installer_tag }}"
+          
+      - name: Download das dependencias
+        shell: "dep ensure"
+        args:
+          chdir: "{{ work_dir }}/go/src/github.com/openshift/installer"
+          
+      - name: Realizando Build do Instalador
+        shell: "TAGS=libvirt hack/build.sh"
+        args:
+          chdir: "{{ work_dir }}/go/src/github.com/openshift/installer"
+          
+######################################### SESSAO KVM ####################################################
+
+    - block: 
+        - name: Certificando existencia do KVM
+          stat:
+            path: "{{ kvm_device_path }}"
+          register: stat_result
+  
+        - fail:
+            msg: >
+                 Seu KVM parece não estar ativo 
+                 (device {{ kvm_device_path }} is missing).
+          when: stat_result.stat.exists == False
+  
+    - block:
+      - name: Acessos a usuários comuns
+        copy:
+          #src: files/80-libvirt.rules 
+          content: |
+            polkit.addRule(function(action, subject) {
+              if (action.id == "org.libvirt.unix.manage" && subject.local && subject.active && subject.isInGroup("wheel")) {
+                  return polkit.Result.YES;
+              }
+            });
+          dest: /etc/polkit-1/rules.d/80-libvirt.rules
+          owner: root 
+          group: root
+          mode: 0644
+  
+      - name: Configurar IP Forwarding
+        sysctl:
+          name: net.ipv4.ip_forward
+          value: 1
+          sysctl_set: yes
+          state: present
+          reload: yes
+  
+      - block:
+        - name: Teste de Configuração
+          ini_file:
+            path: /etc/libvirt/libvirtd.conf
+            section: 
+            option: "{{ item.name }}" 
+            value: "{{ item.val }}" 
+            mode: 0644
+            owner: root
+            backup: yes
+          loop: "{{ libvirt_settings }}"
+  
+#        - name: Ensure Libvirt is Configured to LISTEN
+#          ini_file:
+#            path: /etc/sysconfig/libvirtd
+#            section: 
+#            option: "LIBVIRTD_ARGS" 
+#            value: "--listen" 
+#            mode: 0644
+#            owner: root
+#            backup: yes
+#          when: ansible_distribution == 'Fedora'
+  
+#        - fail:
+#            msg: "This was designed to work on Fedora (please file a PR)"
+#          when: ansible_distribution != 'Fedora'
+  
+#      become: yes
+  
+    ### Make sure Libvirt Networks don't conflict with 192.168.126.0/24
+    - block: 
+      - name: Obter redes libvirt
+        virt_net:
+          command: list_nets
+        register: libvirt_networks
+  
+      - debug:
+          var: libvirt_networks.list_nets
+  
+      - name: Obter Libvirt Network XML
+        virt_net: 
+          command: get_xml
+          name: "{{ item }}" 
+        loop: "{{ libvirt_networks.list_nets }}"
+        register: libvirt_networks_xml
+  
+      - name: Obter data
+        xml:
+          xmlstring: "{{ item.get_xml }}"
+          xpath: /network/ip
+          content: attribute
+          attribute: address
+        register: ip_address
+        loop: "{{ libvirt_networks_xml.results }}"
+  
+      - set_fact:
+          net_masks: "{{ item.matches.0.ip.address.split('.')[0:3] | join('.')}}.0/{{ item.matches.0.ip.netmask }}"
+        loop: "{{ ip_address.results }}" 
+        register: libvirt_netmasks
+        when: item.matches.0.ip.netmask is defined
+  
+      - fail:
+          msg: "Net Mask {{ item }} confilcts with {{ cluster.cluster_cidr }}"
+        when: item == cluster.0.cluster_cidr 
+        loop: "{{ libvirt_netmasks.results  | map(attribute='ansible_facts')| select('defined') | map(attribute='net_masks') | list | ipaddr('net') }}"
+  
+      become: yes
+  
+    ### Confirm that Storage Pool is defined
+    - block:     ### This should fail here if the pool is not defined 
+      - virt_pool:
+          command: status
+          name: "default"
+        ignore_errors: yes
+        register: storage_pool
+  
+    - block:
+      - virt_pool:
+          command: define
+          name: "default"
+          xml: '{{ lookup("file","./templates/default_pool.xml") }}'
+  
+      - virt_pool:
+          command: start
+          name: "default"
+          autostart: yes
+  
+      - command: restorecon -irv /var/lib/libvirt
+  
+      when: storage_pool is failed
+  
+  
+    - block: 
+      - name: Habilitar DNSMASQ e NetworkManager
+        ini_file:
+          path: /etc/NetworkManager/NetworkManager.conf
+          section: "main" 
+          option: "dns" 
+          value: "dnsmasq" 
+          mode: 0644
+          owner: root
+          backup: yes
+  
+      - name: Criando dnsmasq conf (empty)
+        copy:
+          content: ""
+          dest: "/etc/NetworkManager/dnsmasq.d/{{ item.domain_name }}.conf"
+          force: no
+          owner: root
+          mode: 0644
+        loop: "{{ cluster }}"
+    
+      - name: Criando dnsmasq conf file (populate)
+        blockinfile:
+          path: "/etc/NetworkManager/dnsmasq.d/{{ item.domain_name }}.conf"
+          insertafter: '^server='
+          content: |
+             server=/{{ item.domain_name }}/{{ item.dns_server }}
+             address=/.{{ item.wildcard_name }}/{{ item.router_server }}
+          owner: root
+          group: root
+          mode: 0644
+        loop: "{{ cluster }}"
+    
+      become: yes
+  
+    - block:
+      - name: Pegar OS (var)
+        shell: "go env GOOS"
+        register: GOOS_VAR
+  
+      - name: Pegar Arch (var)  
+        shell: "go env GOARCH"
+        register: GOARCH_VAR
+  
+      - name: Criando diretorio ~/.local/bin
+        file: 
+          path: "{{ lookup('env', 'HOME') }}/.local/bin/"
+          state: directory
+  
+      - name: "Instalar Terraform"
+        unarchive:
+          src: "https://releases.hashicorp.com/terraform/{{ terraform_version }}/terraform_{{ terraform_version }}_{{ GOOS_VAR.stdout }}_{{ GOARCH_VAR.stdout }}.zip"
+          dest: "{{ lookup('env', 'HOME') }}/.local/bin/"
+          remote_src: yes
+  
+      - name: Make Terraform Executable
+        file:
+          path: "{{ lookup('env', 'HOME') }}/.local/bin/terraform"
+          state: touch
+          mode: "+x"
+  
+      - name: Configurar Terraform plugin-cache
+        copy:
+          content: 'plugin_cache_dir = "$HOME/.terraform.d/plugin-cache"'
+          dest: "{{ lookup('env','HOME') }}/.terraformrc"
+  
+    - block:
+      - name: "Restart and Enable libvirtd" 
+        systemd:
+          name: "libvirtd"
+          state: restarted
+          enabled: yes
+          daemon_reload: yes
+  
+      become: yes
