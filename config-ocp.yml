@@ -6,6 +6,10 @@
     GOPATH: "{{ work_dir }}/go"
     installer_tag: 'v0.14.0'
     kvm_device_path: "/dev/kvm"
+    openshift_repo: "https://github.com/openshift/installer.git"
+    dep_url: "https://raw.githubusercontent.com/golang/dep/master/install.sh"
+    go_url: "https://dl.google.com/go/go1.11.1.linux-amd64.tar.gz"
+    go_package: "go1.11.1.linux-amd64.tar.gz"
 
     libvirt_settings:
       - {name: 'listen_tls', val: 0}
@@ -39,11 +43,16 @@
   - block:
     - name: Download GO
       get_url:
-        url: https://dl.google.com/go/go1.11.1.linux-amd64.tar.gz
+        url: "{{ go_url }}"
         dest: "{{ work_dir }}"
         
     - name: Descompactando GO
-      shell: tar -xzf "{{ work_dir }}/go1.11.1.linux-amd64.tar.gz" -C "{{ work_dir }}"
+      unarchive:
+        src: "{{ work_dir }}/{{ go_package }}"
+        dest: "{{ work_dir }}"
+        
+#    - name: Descompactando GO
+#      shell: tar -xzf "{{ work_dir }}/go1.11.1.linux-amd64.tar.gz" -C "{{ work_dir }}"
       
     - name: Copiando binario para bin folder
       copy:
@@ -59,29 +68,14 @@
       
     - name: Checar a versao do GOLANG
       fail:
-        msg="GO Lang Verion {{go_ver.stdout|regex_search('(\d).(\d*).(\d*)')}} deve ser superior a versao 1.10.3"
+        msg="GO Lang Version {{go_ver.stdout|regex_search('(\d).(\d*).(\d*)')}} deve ser superior a versao 1.10.3"
       when: go_ver is succeeded and go_ver.stdout|regex_search('(\d).(\d*).(\d*)')|int is version('1.10.3', '>=')
       
   - block:
     - name: Instalando pacotes KVM
       yum:
-        name: "{{ item }}"
+        name: ['vim', 'git', 'nano', 'wget', 'net-tools', 'unzip', 'libvirt', 'libvirt-devel', 'libselinux-python', 'libvirt-client', 'python-netaddr', 'libvirt-python', 'python-lxml', 'virt-manager']
         state: installed
-      with_items:
-        - vim
-        - git
-        - nano
-        - wget
-        - net-tools
-        - unzip
-        - libvirt
-        - libvirt-devel
-        - libselinux-python
-        - libvirt-client
-        - python-netaddr
-        - libvirt-python
-        - python-lxml
-        - virt-manager
       ignore_errors: yes    
       become: yes
       
@@ -114,16 +108,13 @@
     - block:
       - name: Instalando build packages
         yum:
-          name: "{{ item }}"
+          name: ['libvirt-devel', 'gcc-c++']
           state: installed
         become: yes
-        with_items:
-          - libvirt-devel
-          - gcc-c++
         
       - name: Download Dep
         get_url:
-          url: https://raw.githubusercontent.com/golang/dep/master/install.sh
+          url: "{{ dep_url }}"
           dest: "{{ work_dir }}/install.sh"
           mode: 0777
           
@@ -133,7 +124,7 @@
     - block:
       - name: Clonando o Instalador do OCP
         git:
-          repo: https://github.com/openshift/installer.git
+          repo: "{{ openshift_repo }}"
           dest: "{{ work_dir }}/go/src/github.com/openshift/installer"
           version: "{{ installer_tag }}"
           
