@@ -39,11 +39,11 @@
   - block:
     - name: Download GO
       get_url:
-        url: https://dl.google.com/go/go1.11.9.linux-amd64.tar.gz
+        url: https://dl.google.com/go/go1.11.1.linux-amd64.tar.gz
         dest: "{{ work_dir }}"
         
     - name: Descompactando GO
-      shell: tar -xzf "{{ work_dir }}/go1.11.9.linux-amd64.tar.gz" -C "{{ work_dir }}"
+      shell: tar -xzf "{{ work_dir }}/go1.11.1.linux-amd64.tar.gz" -C "{{ work_dir }}"
       
     - name: Copiando binario para bin folder
       copy:
