@@ -70,9 +70,9 @@
       when: go_ver is succeeded and go_ver.stdout|regex_search('(\d).(\d*).(\d*)')|int is version('1.10.3', '>=')
       
   - block:
-    - name: Instalando pacotes KVM
+    - name: Instalando pacotes
       yum:
-        name: ['vim', 'git', 'nano', 'wget', 'net-tools', '*virsh*', 'libvirt-daemon-kvm', '*netaddr*', 'qemu-kvm', '*lxml*','*kvm*', 'unzip', 'libvirt', 'libvirt-devel', 'libselinux-python', 'libvirt-client', 'python-netaddr', 'libvirt-python', 'python-lxml', 'virt-manager']
+        name: ['vim', 'git', 'nano', 'wget', 'net-tools', '*libvirt*', '*virsh*', 'virsh*', 'libvirt-daemon-kvm', '*netaddr*', 'qemu-kvm', '*lxml*','*kvm*', 'unzip', 'libvirt', '*libvirt*', 'libvirt-devel', 'libselinux-python', 'libvirt-client', 'python-netaddr', 'libvirt-python', 'python-lxml', 'virt-manager']
         state: installed
       ignore_errors: yes    
       become: yes
