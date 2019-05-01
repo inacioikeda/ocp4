@@ -72,7 +72,7 @@
   - block:
     - name: Instalando pacotes KVM
       yum:
-        name: ['vim', 'git', 'nano', 'wget', 'net-tools', 'libvirt-daemon-kvm', 'qemu-kvm', 'python*', 'unzip', 'libvirt', 'libvirt-devel', 'libselinux-python', 'libvirt-client', 'python-netaddr', 'libvirt-python', 'python-lxml', 'virt-manager']
+        name: ['vim', 'git', 'nano', 'wget', 'net-tools', 'libvirt-daemon-kvm', '*netaddr*', 'qemu-kvm', '*lxml*','*kvm*', 'unzip', 'libvirt', 'libvirt-devel', 'libselinux-python', 'libvirt-client', 'python-netaddr', 'libvirt-python', 'python-lxml', 'virt-manager']
         state: installed
       ignore_errors: yes    
       become: yes
@@ -335,14 +335,14 @@
     - block:
       - name: Adicionar regras de firewall
         firewalld:
-          zone: FeedoraServer
+          zone: FedoraServer
           source: 192.168.126.0/24
           permanent: yes
           state: enabled
           
       - name: Adicionar regras de firewall 2
         firewalld:
-          zone: FeedoraServer
+          zone: FedoraServer
           port: "{{ item }}/tcp"
           permanent: yes
           state: enabled
@@ -360,7 +360,7 @@
           
       - name: Adicionar regras de firewall 3
         firewalld:
-          zone: FeedoraServer
+          zone: FedoraServer
           port: "{{ item }}/udp"
           permanent: yes
           state: enabled
