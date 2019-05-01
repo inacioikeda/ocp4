@@ -340,6 +340,20 @@
           permanent: yes
           state: enabled
           
+      - name: Adicionar regras de firewall
+        firewalld:
+          zone: FedoraServer
+          source: 192.168.122.0/24
+          permanent: yes
+          state: enabled
+          
+      - name: Adicionar regras de firewall
+        firewalld:
+          zone: FedoraServer
+          source: 192.168.0.0/24
+          permanent: yes
+          state: enabled
+          
       - name: Adicionar regras de firewall 2
         firewalld:
           zone: FedoraServer
