@@ -384,6 +384,9 @@
           
       - name: Adicionar DNSMAsq Server Conf
         shell: echo server=/tt.testing/192.168.126.1 | sudo tee /etc/NetworkManager/dnsmasq.d/openshift.conf
+        
+      - name: Adicionar entrada no hosts
+        shell: echo "192.168.126.1 tt.testing" >> /etc/hosts && echo "192.168.126.11 api.ocp.tt.testing" >> /etc/hosts && echo "192.168.0.200 ocp.tt.testing" >> /etc/hosts
           
       - name: Restart Services
         service:
