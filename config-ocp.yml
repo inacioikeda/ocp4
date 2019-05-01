@@ -28,17 +28,18 @@
     PATH: "{{ GOBIN }}:{{ ansible_env.PATH }}"
       
   pre_tasks:
-#  - block: 
-#    - name: Habilitar RHSM
-#      rhsm_repository:
-#        name: "{{ item }}"
-#      with_items:
-#        - rhel-7-server-rpms
-#        - rhel-7-server-extras-rpms
-#        - rhel-7-server-rh-common-rpms
-#        - rhel-7-server-ansible-2.7-rpms
-#        - rhel-7-server-devtools-rpms
-#        - rhel-server-rhscl-7-rpms
+  - block: 
+    - name: Habilitar RHSM
+      rhsm_repository:
+        name: "{{ item }}"
+      with_items:
+        - rhel-7-server-rpms
+        - rhel-7-server-extras-rpms
+        - rhel-7-server-rh-common-rpms
+        - rhel-7-server-ansible-2.7-rpms
+        - rhel-7-server-devtools-rpms
+        - rhel-server-rhscl-7-rpms
+      when: ansible_distribution == 'Redhat'
     
   - block:
     - name: Download GO
@@ -134,8 +135,6 @@
         shell: "TAGS=libvirt hack/build.sh"
         args:
           chdir: "{{ work_dir }}/go/src/github.com/openshift/installer"
-          
-######################################### SESSAO KVM ####################################################
 
     - block: 
         - name: Certificando existencia do KVM
@@ -350,6 +349,7 @@
         with_items:
           - 6443
           - 80
+          - 443
           - 8443
           - 16509
           - 53
@@ -368,7 +368,13 @@
           - 53
           - 4789
           
-      - name: Configure NetworkManager Domain
-        shell: echo server=/"{{ domain_name }}/{{ dns_server }}"| sudo tee /etc/NetworkManager/dnsmasq.d/openshift.conf
+      - name: Restart Services
+        service:
+          name: "{{ item }}"
+          state: restarted
+          enabled: yes
+        with_items:
+          - dnsmasq
+          - NetworkManager
   
       become: yes
