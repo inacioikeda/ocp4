@@ -72,7 +72,7 @@
   - block:
     - name: Instalando pacotes KVM
       yum:
-        name: ['vim', 'git', 'nano', 'wget', 'net-tools', 'libvirt-daemon-kvm', '*netaddr*', 'qemu-kvm', '*lxml*','*kvm*', 'unzip', 'libvirt', 'libvirt-devel', 'libselinux-python', 'libvirt-client', 'python-netaddr', 'libvirt-python', 'python-lxml', 'virt-manager']
+        name: ['vim', 'git', 'nano', 'wget', 'net-tools', '*virsh*', 'libvirt-daemon-kvm', '*netaddr*', 'qemu-kvm', '*lxml*','*kvm*', 'unzip', 'libvirt', 'libvirt-devel', 'libselinux-python', 'libvirt-client', 'python-netaddr', 'libvirt-python', 'python-lxml', 'virt-manager']
         state: installed
       ignore_errors: yes    
       become: yes
@@ -367,6 +367,9 @@
         with_items:
           - 53
           - 4789
+          
+      - name: Adicionar DNSMAsq Server Conf
+        shell: echo server=/tt.testing/192.168.126.1 | sudo tee /etc/NetworkManager/dnsmasq.d/openshift.conf
           
       - name: Restart Services
         service:
