@@ -4,7 +4,7 @@
     work_dir: '/tmp'
     GOBIN: "{{ work_dir }}/go/bin"
     GOPATH: "{{ work_dir }}/go"
-    installer_tag: 'v0.14.0'
+    installer_tag: 'v0.16.1'
     kvm_device_path: "/dev/kvm"
     openshift_repo: "https://github.com/openshift/installer.git"
     dep_url: "https://raw.githubusercontent.com/golang/dep/master/install.sh"
@@ -28,17 +28,17 @@
     PATH: "{{ GOBIN }}:{{ ansible_env.PATH }}"
       
   pre_tasks:
-  - block: 
-    - name: Habilitar RHSM
-      rhsm_repository:
-        name: "{{ item }}"
-      with_items:
-        - rhel-7-server-rpms
-        - rhel-7-server-extras-rpms
-        - rhel-7-server-rh-common-rpms
-        - rhel-7-server-ansible-2.7-rpms
-        - rhel-7-server-devtools-rpms
-        - rhel-server-rhscl-7-rpms
+#  - block: 
+#    - name: Habilitar RHSM
+#      rhsm_repository:
+#        name: "{{ item }}"
+#      with_items:
+#        - rhel-7-server-rpms
+#        - rhel-7-server-extras-rpms
+#        - rhel-7-server-rh-common-rpms
+#        - rhel-7-server-ansible-2.7-rpms
+#        - rhel-7-server-devtools-rpms
+#        - rhel-server-rhscl-7-rpms
     
   - block:
     - name: Download GO
@@ -50,9 +50,6 @@
       unarchive:
         src: "{{ work_dir }}/{{ go_package }}"
         dest: "{{ work_dir }}"
-        
-#    - name: Descompactando GO
-#      shell: tar -xzf "{{ work_dir }}/go1.11.1.linux-amd64.tar.gz" -C "{{ work_dir }}"
       
     - name: Copiando binario para bin folder
       copy:
@@ -68,7 +65,7 @@
       
     - name: Checar a versao do GOLANG
       fail:
-        msg="GO Lang Version {{go_ver.stdout|regex_search('(\d).(\d*).(\d*)')}} deve ser superior a versao 1.10.3"
+        msg="Go Lang Version {{go_ver.stdout|regex_search('(\d).(\d*).(\d*)')}} deve ser superior a versao 1.10.3"
       when: go_ver is succeeded and go_ver.stdout|regex_search('(\d).(\d*).(\d*)')|int is version('1.10.3', '>=')
       
   - block:
@@ -87,7 +84,7 @@
 
   tasks:
     - block:
-      - name: Criando diretorio GO
+      - name: Criando diretorio Go
         file:
           state: directory
           path: "{{ work_dir }}/go/{{ item }}"
@@ -155,7 +152,6 @@
     - block:
       - name: Acessos a usuários comuns
         copy:
-          #src: files/80-libvirt.rules 
           content: |
             polkit.addRule(function(action, subject) {
               if (action.id == "org.libvirt.unix.manage" && subject.local && subject.active && subject.isInGroup("wheel")) {
@@ -187,24 +183,22 @@
             backup: yes
           loop: "{{ libvirt_settings }}"
   
-#        - name: Ensure Libvirt is Configured to LISTEN
-#          ini_file:
-#            path: /etc/sysconfig/libvirtd
-#            section: 
-#            option: "LIBVIRTD_ARGS" 
-#            value: "--listen" 
-#            mode: 0644
-#            owner: root
-#            backup: yes
-#          when: ansible_distribution == 'Fedora'
+        - name: Ensure Libvirt is Configured to LISTEN
+          ini_file:
+            path: /etc/sysconfig/libvirtd
+            section: 
+            option: "LIBVIRTD_ARGS" 
+            value: "--listen" 
+            mode: 0644
+            owner: root
+            backup: yes
+          when: ansible_distribution == 'Fedora'
   
-#        - fail:
-#            msg: "This was designed to work on Fedora (please file a PR)"
-#          when: ansible_distribution != 'Fedora'
-  
-#      become: yes
-  
-    ### Make sure Libvirt Networks don't conflict with 192.168.126.0/24
+        - fail:
+            msg: "This was designed to work on Fedora (please file a PR)"
+          when: ansible_distribution != 'Fedora'
+      become: yes
+    
     - block: 
       - name: Obter redes libvirt
         virt_net:
@@ -243,8 +237,7 @@
   
       become: yes
   
-    ### Confirm that Storage Pool is defined
-    - block:     ### This should fail here if the pool is not defined 
+    - block:   
       - virt_pool:
           command: status
           name: "default"
